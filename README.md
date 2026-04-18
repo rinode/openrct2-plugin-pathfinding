@@ -12,7 +12,7 @@ OpenRCT2 plugin for visualizing pathfinding on footpaths. Pick a start and end t
 
 ## Requirements
 
-- OpenRCT2 with PathNavigator API support (`feature/path-navigator` branch)
+- OpenRCT2 built from the [PathNavigator API branch](https://github.com/rinode/OpenRCT2/tree/feature/path-navigator) (until merged upstream)
 - A park with footpaths
 
 ## Install
