@@ -3,19 +3,8 @@ import {
     window as flexWindow,
     store, compute, WritableStore, Store, WindowTemplate, Colour,
 } from "openrct2-flexui";
-import { PathfindingAlgorithm, PathfindingFunction } from "./algorithms/types";
-import { astar } from "./algorithms/astar";
-import { dijkstra } from "./algorithms/dijkstra";
-import { bfs } from "./algorithms/bfs";
-import { greedy } from "./algorithms/greedy";
+import { PathfindingAlgorithm, algorithms } from "openrct2-library-pathfinding";
 import { showPath, clearPath } from "./visualization";
-
-const algorithms: Record<PathfindingAlgorithm, PathfindingFunction> = {
-    [PathfindingAlgorithm.AStar]: astar,
-    [PathfindingAlgorithm.Dijkstra]: dijkstra,
-    [PathfindingAlgorithm.BFS]: bfs,
-    [PathfindingAlgorithm.Greedy]: greedy,
-};
 
 const algorithmNames = Object.values(PathfindingAlgorithm);
 

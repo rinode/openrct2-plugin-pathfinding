@@ -10,7 +10,8 @@
   "author": "rinode",
   "license": "MIT",
   "dependencies": {
-    "openrct2-flexui": "next"
+    "openrct2-flexui": "next",
+    "openrct2-library-pathfinding": "github:rinode/openrct2-library-pathfinding"
   },
   "devDependencies": {
     "@openrct2/types": "0.5.0",
