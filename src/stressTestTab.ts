@@ -1,12 +1,9 @@
 import {
-    button, checkbox, dropdown, groupbox, horizontal, label, spinner, tab,
+    button, checkbox, groupbox, horizontal, label, spinner, tab,
     store, compute, WritableStore, Store, TabCreator,
 } from "openrct2-flexui";
-import { PathfindingAlgorithm, algorithms, getDefaultGraph, guidePeep } from "openrct2-library-pathfinding";
+import { guidePeeps, getDefaultGraph } from "openrct2-library-pathfinding";
 import { togglePickTool } from "./pickTool";
-import { junctionCount } from "./graphState";
-
-const algorithmNames = Object.values(PathfindingAlgorithm);
 
 function formatCoords(pos: CoordsXYZ | null): string {
     if (!pos) return "Not set";
@@ -42,26 +39,10 @@ function pickFootpathTile(pressed: WritableStore<boolean>, target: WritableStore
     });
 }
 
-function guestPosition(guest: Guest): CoordsXYZ | null {
-    const tx = Math.floor(guest.x / 32);
-    const ty = Math.floor(guest.y / 32);
-    const tile = map.getTile(tx, ty);
-    let bestZ = -Infinity;
-    for (const el of tile.elements) {
-        if (el.type === "footpath" && el.baseZ <= guest.z + 8 && el.baseZ > bestZ) {
-            bestZ = el.baseZ;
-        }
-    }
-    if (bestZ === -Infinity) return null;
-    return { x: tx * 32, y: ty * 32, z: bestZ };
-}
-
 export function createStressTestTab(): TabCreator {
     const destPos: WritableStore<CoordsXYZ | null> = store(null);
     const destPressed: WritableStore<boolean> = store(false);
-    const selectedAlgorithm: WritableStore<number> = store(0);
     const budgetMs: WritableStore<number> = store(2);
-    const useGraph: WritableStore<boolean> = store(false);
     const statusText: WritableStore<string> = store("");
     const inflightStore: WritableStore<number> = store(0);
     const arrivedStore: WritableStore<number> = store(0);
@@ -70,8 +51,78 @@ export function createStressTestTab(): TabCreator {
     const noPathStore: WritableStore<number> = store(0);
     const noStartStore: WritableStore<number> = store(0);
 
+    const debugColors: WritableStore<boolean> = store(false);
+
     let activeSession: { cancelled: boolean } | null = null;
     const frozenIds: Set<number> = new Set();
+
+    type PeepStatus = "inflight" | "arrived" | "blocked";
+    const peepStatus: Map<number, PeepStatus> = new Map();
+    const savedColors: Map<number, { tshirt: number; trousers: number }> = new Map();
+
+    const COLOR_INFLIGHT = 17; // BRIGHT_YELLOW
+    const COLOR_ARRIVED = 14;  // BRIGHT_GREEN
+    const COLOR_BLOCKED = 28;  // BRIGHT_RED
+
+    function colorForStatus(s: PeepStatus): number {
+        return s === "arrived" ? COLOR_ARRIVED : s === "inflight" ? COLOR_INFLIGHT : COLOR_BLOCKED;
+    }
+
+    function applyColor(id: number, s: PeepStatus): void {
+        const entity = map.getEntity(id);
+        if (!entity || entity.type !== "guest") return;
+        const g = entity as Guest;
+        if (!savedColors.has(id)) {
+            savedColors.set(id, { tshirt: g.tshirtColour, trousers: g.trousersColour });
+        }
+        const c = colorForStatus(s);
+        g.tshirtColour = c;
+        g.trousersColour = c;
+    }
+
+    function setPeepStatus(id: number, s: PeepStatus | null): void {
+        if (s === null) {
+            peepStatus.delete(id);
+            restorePeepColor(id);
+            return;
+        }
+        peepStatus.set(id, s);
+        if (debugColors.get()) applyColor(id, s);
+    }
+
+    function restorePeepColor(id: number): void {
+        const saved = savedColors.get(id);
+        if (!saved) return;
+        const entity = map.getEntity(id);
+        if (entity && entity.type === "guest") {
+            const g = entity as Guest;
+            g.tshirtColour = saved.tshirt;
+            g.trousersColour = saved.trousers;
+        }
+        savedColors.delete(id);
+    }
+
+    function restoreAllColors(): void {
+        for (const id of Array.from(savedColors.keys())) restorePeepColor(id);
+    }
+
+    function applyAllStatusColors(): void {
+        for (const [id, s] of peepStatus) applyColor(id, s);
+    }
+
+    let colorTickSub: IDisposable | null = null;
+
+    function startColorTick(): void {
+        if (colorTickSub) return;
+        colorTickSub = context.subscribe("interval.tick", () => applyAllStatusColors());
+    }
+
+    function stopColorTick(): void {
+        if (colorTickSub) {
+            colorTickSub.dispose();
+            colorTickSub = null;
+        }
+    }
 
     function unfreezeAll(): void {
         for (const id of frozenIds) {
@@ -89,18 +140,22 @@ export function createStressTestTab(): TabCreator {
             activeSession = null;
         }
         unfreezeAll();
+        restoreAllColors();
+        peepStatus.clear();
     }
 
     const destLabel: Store<string> = compute(destPos, formatCoords);
     const cannotRun: Store<boolean> = compute(destPos, d => d === null);
-    const useGraphDisabled: Store<boolean> = compute(junctionCount, c => c === 0);
 
     return tab({
         image: { frameBase: 5568, frameCount: 8, frameDuration: 4 }, // SPR_TAB_GUESTS_0..7
         height: "auto",
-        onClose: () => cancelSession(),
+        onClose: () => {
+            stopColorTick();
+            cancelSession();
+        },
         content: [
-            label({ text: "{BLACK}{MEDIUMFONT}Stress test" }),
+            label({ text: "{BLACK}{MEDIUMFONT}Guide all peeps" }),
             groupbox({
                 text: "Target",
                 content: [
@@ -119,15 +174,6 @@ export function createStressTestTab(): TabCreator {
                 text: "Settings",
                 content: [
                     horizontal([
-                        label({ text: "Algorithm:", width: "65px" }),
-                        dropdown({
-                            width: "1w",
-                            items: compute(store(0), () => algorithmNames),
-                            selectedIndex: selectedAlgorithm,
-                            onChange: (index: number) => selectedAlgorithm.set(index),
-                        }),
-                    ]),
-                    horizontal([
                         label({ text: "Budget:", width: "65px" }),
                         spinner({
                             width: "1w",
@@ -139,10 +185,17 @@ export function createStressTestTab(): TabCreator {
                         }),
                     ]),
                     checkbox({
-                        text: "Use junction graph",
-                        isChecked: useGraph,
-                        disabled: useGraphDisabled,
-                        onChange: (checked: boolean) => useGraph.set(checked),
+                        text: "Debug colors",
+                        isChecked: debugColors,
+                        onChange: (on: boolean) => {
+                            if (on) {
+                                applyAllStatusColors();
+                                startColorTick();
+                            } else {
+                                stopColorTick();
+                                restoreAllColors();
+                            }
+                        },
                     }),
                 ],
             }),
@@ -159,6 +212,9 @@ export function createStressTestTab(): TabCreator {
                         activeSession = session;
 
                         const guests = map.getAllEntities("guest");
+                        for (const g of guests) {
+                            if (g.id !== null) setPeepStatus(g.id, "inflight");
+                        }
                         statusText.set(`Dispatching ${guests.length} guests...`);
                         inflightStore.set(0);
                         arrivedStore.set(0);
@@ -167,20 +223,16 @@ export function createStressTestTab(): TabCreator {
                         noPathStore.set(0);
                         noStartStore.set(0);
 
-                        const algo = algorithms[algorithmNames[selectedAlgorithm.get()]];
-                        const budget = budgetMs.get();
-                        const options = useGraph.get() ? { graph: getDefaultGraph() } : undefined;
-
-                        let dispatched = 0;
-                        let noStart = 0;
-                        let noPath = 0;
+                        const total = guests.length;
                         let arrived = 0;
                         let stuck = 0;
                         let removed = 0;
+                        let noPath = 0;
+                        let noStart = 0;
 
                         function refresh(): void {
                             if (session.cancelled) return;
-                            inflightStore.set(dispatched - arrived - stuck - removed);
+                            inflightStore.set(total - arrived - stuck - removed - noPath - noStart);
                             arrivedStore.set(arrived);
                             stuckStore.set(stuck);
                             removedStore.set(removed);
@@ -188,31 +240,44 @@ export function createStressTestTab(): TabCreator {
                             noStartStore.set(noStart);
                         }
 
-                        for (const guest of guests) {
-                            const start = guestPosition(guest);
-                            if (!start) { noStart++; continue; }
-
-                            dispatched++;
-                            algo(start, dest, budget, options).then((result) => {
+                        guidePeeps(guests, dest, {
+                            budgetMs: budgetMs.get(),
+                            graph: getDefaultGraph(),
+                            cancelToken: session,
+                            onPeepResult: (peep, r) => {
                                 if (session.cancelled) return;
-                                if (!result.success) {
+                                const id = peep.id;
+                                if (r.status === "arrived") {
+                                    arrived++;
+                                    (peep as Guest).setFlag("positionFrozen", true);
+                                    if (id !== null) {
+                                        frozenIds.add(id);
+                                        setPeepStatus(id, "arrived");
+                                    }
+                                } else if (r.status === "stuck") {
+                                    stuck++;
+                                    if (id !== null) setPeepStatus(id, "blocked");
+                                } else if (r.status === "peep_removed") {
+                                    removed++;
+                                    if (id !== null) setPeepStatus(id, null);
+                                } else if (r.status === "no-path") {
                                     noPath++;
-                                    refresh();
-                                    return;
+                                    if (id !== null) setPeepStatus(id, "blocked");
+                                } else if (r.status === "no-start") {
+                                    noStart++;
+                                    if (id !== null) setPeepStatus(id, null);
                                 }
-                                guidePeep(guest, result.path, { cancelToken: session }).then((g) => {
-                                    if (session.cancelled) return;
-                                    if (g.status === "arrived") {
-                                        arrived++;
-                                        guest.setFlag("positionFrozen", true);
-                                        frozenIds.add(guest.id!);
-                                    } else if (g.status === "stuck") stuck++;
-                                    else if (g.status === "peep_removed") removed++;
-                                    refresh();
-                                });
-                            });
-                        }
-                        refresh();
+                                refresh();
+                            },
+                        }).then((summary) => {
+                            if (session.cancelled) return;
+                            statusText.set(
+                                `Done: ${summary.arrived}/${summary.dispatched} arrived` +
+                                (summary.noPath + summary.noStart > 0
+                                    ? ` (${summary.noPath} no-path, ${summary.noStart} no-start)`
+                                    : ""),
+                            );
+                        });
                     },
                 }),
                 button({

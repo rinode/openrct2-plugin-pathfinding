@@ -36,10 +36,10 @@ npm run develop
 
 Open the **Pathfinding** window from the map menu. Four tabs:
 
-- **Pathfinding**: pick two footpath tiles, run a search, see the path as ghost footpaths.
-- **Guest navigation**: pick a guest and a destination, the guest walks the computed path.
-- **Stress test**: send every guest in the park to one destination, track inflight/arrived/stuck/removed/no-path counts.
-- **Junction graph**: precompute and inspect the junction graph used as an opt-in speedup.
+- **Pathfinding** — *Find path (astar / dijkstra / bfs / greedy).* Pick two footpath tiles, run a search, see the path as ghost footpaths.
+- **Guest navigation** — *Guide one peep (guidePeep).* Pick a guest and a destination, the guest walks the computed path.
+- **Stress test** — *Guide all peeps (guidePeeps).* Send every guest in the park to one destination; a single reverse Dijkstra on the junction graph plans every reachable peep's path in one pass, so planning stays tick-distributed even with hundreds of guests. Counters track inflight/arrived/stuck/removed/no-path/no-start.
+- **Junction graph** — *(buildGraph).* Precompute and inspect the junction graph used as an opt-in speedup.
 
 ### Junction graph
 

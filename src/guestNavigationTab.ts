@@ -2,7 +2,7 @@ import {
     button, checkbox, dropdown, groupbox, horizontal, label, spinner, tab,
     store, compute, WritableStore, Store, TabCreator,
 } from "openrct2-flexui";
-import { PathfindingAlgorithm, algorithms, getDefaultGraph, guidePeep } from "openrct2-library-pathfinding";
+import { PathfindingAlgorithm, algorithms, getDefaultGraph, guidePeep, peepFootpathTile } from "openrct2-library-pathfinding";
 import { showPath, clearPath } from "./visualization";
 import { togglePickTool } from "./pickTool";
 import { junctionCount } from "./graphState";
@@ -68,21 +68,6 @@ function pickFootpathTile(pressed: WritableStore<boolean>, target: WritableStore
     });
 }
 
-function guestPosition(guest: Guest): CoordsXYZ | null {
-    // Snap to tile grid; find footpath element at the peep's foot
-    const tx = Math.floor(guest.x / 32);
-    const ty = Math.floor(guest.y / 32);
-    const tile = map.getTile(tx, ty);
-    let bestZ = -Infinity;
-    for (const el of tile.elements) {
-        if (el.type === "footpath" && el.baseZ <= guest.z + 8 && el.baseZ > bestZ) {
-            bestZ = el.baseZ;
-        }
-    }
-    if (bestZ === -Infinity) return null;
-    return { x: tx * 32, y: ty * 32, z: bestZ };
-}
-
 export function createGuestNavigationTab(): TabCreator {
     const selectedGuest: WritableStore<SelectedGuest | null> = store(null);
     const destPos: WritableStore<CoordsXYZ | null> = store(null);
@@ -126,7 +111,7 @@ export function createGuestNavigationTab(): TabCreator {
         height: "auto",
         onClose: () => cancelSession(),
         content: [
-            label({ text: "{BLACK}{MEDIUMFONT}Guest navigation" }),
+            label({ text: "{BLACK}{MEDIUMFONT}Guide one peep" }),
             groupbox({
                 text: "Target",
                 content: [
@@ -197,7 +182,7 @@ export function createGuestNavigationTab(): TabCreator {
                         }
                         const guest = entity as Guest;
 
-                        const start = guestPosition(guest);
+                        const start = peepFootpathTile(guest);
                         if (!start) {
                             statusText.set("Guest is not on a footpath");
                             return;

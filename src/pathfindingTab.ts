@@ -79,7 +79,7 @@ export function createPathfindingTab(): TabCreator {
         height: "auto",
         onClose: () => cancelSession(),
         content: [
-            label({ text: "{BLACK}{MEDIUMFONT}Pathfinding" }),
+            label({ text: "{BLACK}{MEDIUMFONT}Find path" }),
             groupbox({
                 text: "Endpoints",
                 content: [
