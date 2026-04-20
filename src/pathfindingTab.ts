@@ -1,10 +1,11 @@
 import {
-    button, dropdown, groupbox, horizontal, label, spinner, tab,
+    button, checkbox, dropdown, groupbox, horizontal, label, spinner, tab,
     store, compute, WritableStore, Store, TabCreator,
 } from "openrct2-flexui";
-import { PathfindingAlgorithm, algorithms } from "openrct2-library-pathfinding";
+import { PathfindingAlgorithm, algorithms, getDefaultGraph } from "openrct2-library-pathfinding";
 import { showPath, clearPath } from "./visualization";
 import { togglePickTool } from "./pickTool";
+import { junctionCount, refreshJunctionCount } from "./graphState";
 
 const algorithmNames = Object.values(PathfindingAlgorithm);
 
@@ -53,6 +54,7 @@ export function createPathfindingTab(): TabCreator {
     const endPressed: WritableStore<boolean> = store(false);
     const selectedAlgorithm: WritableStore<number> = store(0);
     const budgetMs: WritableStore<number> = store(2);
+    const useGraph: WritableStore<boolean> = store(false);
     const resultText: WritableStore<string> = store("");
     const debugText: WritableStore<string> = store("");
 
@@ -70,12 +72,14 @@ export function createPathfindingTab(): TabCreator {
     const endLabel: Store<string> = compute(endPos, formatCoords);
     const canRun: Store<boolean> = compute(startPos, endPos, (s, e) => s !== null && e !== null);
     const cannotRun: Store<boolean> = compute(canRun, c => !c);
+    const useGraphDisabled: Store<boolean> = compute(junctionCount, c => c === 0);
 
     return tab({
-        image: 5176, // SPR_BUY_LAND_RIGHTS
+        image: 5176,
         height: "auto",
         onClose: () => cancelSession(),
         content: [
+            label({ text: "{BLACK}{MEDIUMFONT}Pathfinding" }),
             groupbox({
                 text: "Endpoints",
                 content: [
@@ -122,6 +126,12 @@ export function createPathfindingTab(): TabCreator {
                             onChange: (v: number) => budgetMs.set(v),
                         }),
                     ]),
+                    checkbox({
+                        text: "Use junction graph",
+                        isChecked: useGraph,
+                        disabled: useGraphDisabled,
+                        onChange: (checked: boolean) => useGraph.set(checked),
+                    }),
                 ],
             }),
             horizontal([
@@ -140,7 +150,8 @@ export function createPathfindingTab(): TabCreator {
                         debugText.set("");
 
                         const algo = algorithms[algorithmNames[selectedAlgorithm.get()]];
-                        algo(s, e, budgetMs.get()).then((result) => {
+                        const options = useGraph.get() ? { graph: getDefaultGraph() } : undefined;
+                        algo(s, e, budgetMs.get(), options).then((result) => {
                             if (session.cancelled) return;
                             if (result.success) {
                                 showPath(result.path);
@@ -151,6 +162,7 @@ export function createPathfindingTab(): TabCreator {
                             debugText.set(
                                 `${result.nodesExplored} nodes, ${result.ticks} ticks, ${result.elapsedMs} ms`
                             );
+                            refreshJunctionCount();
                             activeSession = null;
                         });
                     },

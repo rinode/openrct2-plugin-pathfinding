@@ -1,10 +1,11 @@
 import {
-    button, dropdown, groupbox, horizontal, label, spinner, tab,
+    button, checkbox, dropdown, groupbox, horizontal, label, spinner, tab,
     store, compute, WritableStore, Store, TabCreator,
 } from "openrct2-flexui";
-import { PathfindingAlgorithm, algorithms, guidePeep } from "openrct2-library-pathfinding";
+import { PathfindingAlgorithm, algorithms, getDefaultGraph, guidePeep } from "openrct2-library-pathfinding";
 import { showPath, clearPath } from "./visualization";
 import { togglePickTool } from "./pickTool";
+import { junctionCount } from "./graphState";
 
 const algorithmNames = Object.values(PathfindingAlgorithm);
 
@@ -89,6 +90,7 @@ export function createGuestNavigationTab(): TabCreator {
     const destPressed: WritableStore<boolean> = store(false);
     const selectedAlgorithm: WritableStore<number> = store(0);
     const budgetMs: WritableStore<number> = store(2);
+    const useGraph: WritableStore<boolean> = store(false);
     const statusText: WritableStore<string> = store("");
 
     let activeSession: { cancelled: boolean } | null = null;
@@ -117,12 +119,14 @@ export function createGuestNavigationTab(): TabCreator {
     const destLabel: Store<string> = compute(destPos, formatCoords);
     const canRun: Store<boolean> = compute(selectedGuest, destPos, (g, d) => g !== null && d !== null);
     const cannotRun: Store<boolean> = compute(canRun, c => !c);
+    const useGraphDisabled: Store<boolean> = compute(junctionCount, c => c === 0);
 
     return tab({
         image: 29448, // SPR_G2_PEEP_SPAWN
         height: "auto",
         onClose: () => cancelSession(),
         content: [
+            label({ text: "{BLACK}{MEDIUMFONT}Guest navigation" }),
             groupbox({
                 text: "Target",
                 content: [
@@ -169,6 +173,12 @@ export function createGuestNavigationTab(): TabCreator {
                             onChange: (v: number) => budgetMs.set(v),
                         }),
                     ]),
+                    checkbox({
+                        text: "Use junction graph",
+                        isChecked: useGraph,
+                        disabled: useGraphDisabled,
+                        onChange: (checked: boolean) => useGraph.set(checked),
+                    }),
                 ],
             }),
             horizontal([
@@ -199,7 +209,8 @@ export function createGuestNavigationTab(): TabCreator {
                         statusText.set("Searching...");
 
                         const algo = algorithms[algorithmNames[selectedAlgorithm.get()]];
-                        algo(start, dest, budgetMs.get()).then((result) => {
+                        const options = useGraph.get() ? { graph: getDefaultGraph() } : undefined;
+                        algo(start, dest, budgetMs.get(), options).then((result) => {
                             if (session.cancelled) return;
                             if (!result.success) {
                                 statusText.set("No path found");

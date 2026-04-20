@@ -1,9 +1,10 @@
 import {
-    button, dropdown, groupbox, horizontal, label, spinner, tab,
+    button, checkbox, dropdown, groupbox, horizontal, label, spinner, tab,
     store, compute, WritableStore, Store, TabCreator,
 } from "openrct2-flexui";
-import { PathfindingAlgorithm, algorithms, guidePeep } from "openrct2-library-pathfinding";
+import { PathfindingAlgorithm, algorithms, getDefaultGraph, guidePeep } from "openrct2-library-pathfinding";
 import { togglePickTool } from "./pickTool";
+import { junctionCount } from "./graphState";
 
 const algorithmNames = Object.values(PathfindingAlgorithm);
 
@@ -60,8 +61,14 @@ export function createStressTestTab(): TabCreator {
     const destPressed: WritableStore<boolean> = store(false);
     const selectedAlgorithm: WritableStore<number> = store(0);
     const budgetMs: WritableStore<number> = store(2);
+    const useGraph: WritableStore<boolean> = store(false);
     const statusText: WritableStore<string> = store("");
-    const progressText: WritableStore<string> = store("");
+    const inflightStore: WritableStore<number> = store(0);
+    const arrivedStore: WritableStore<number> = store(0);
+    const stuckStore: WritableStore<number> = store(0);
+    const removedStore: WritableStore<number> = store(0);
+    const noPathStore: WritableStore<number> = store(0);
+    const noStartStore: WritableStore<number> = store(0);
 
     let activeSession: { cancelled: boolean } | null = null;
     const frozenIds: Set<number> = new Set();
@@ -86,12 +93,14 @@ export function createStressTestTab(): TabCreator {
 
     const destLabel: Store<string> = compute(destPos, formatCoords);
     const cannotRun: Store<boolean> = compute(destPos, d => d === null);
+    const useGraphDisabled: Store<boolean> = compute(junctionCount, c => c === 0);
 
     return tab({
         image: { frameBase: 5568, frameCount: 8, frameDuration: 4 }, // SPR_TAB_GUESTS_0..7
         height: "auto",
         onClose: () => cancelSession(),
         content: [
+            label({ text: "{BLACK}{MEDIUMFONT}Stress test" }),
             groupbox({
                 text: "Target",
                 content: [
@@ -129,6 +138,12 @@ export function createStressTestTab(): TabCreator {
                             onChange: (v: number) => budgetMs.set(v),
                         }),
                     ]),
+                    checkbox({
+                        text: "Use junction graph",
+                        isChecked: useGraph,
+                        disabled: useGraphDisabled,
+                        onChange: (checked: boolean) => useGraph.set(checked),
+                    }),
                 ],
             }),
             horizontal([
@@ -145,10 +160,16 @@ export function createStressTestTab(): TabCreator {
 
                         const guests = map.getAllEntities("guest");
                         statusText.set(`Dispatching ${guests.length} guests...`);
-                        progressText.set("");
+                        inflightStore.set(0);
+                        arrivedStore.set(0);
+                        stuckStore.set(0);
+                        removedStore.set(0);
+                        noPathStore.set(0);
+                        noStartStore.set(0);
 
                         const algo = algorithms[algorithmNames[selectedAlgorithm.get()]];
                         const budget = budgetMs.get();
+                        const options = useGraph.get() ? { graph: getDefaultGraph() } : undefined;
 
                         let dispatched = 0;
                         let noStart = 0;
@@ -159,10 +180,12 @@ export function createStressTestTab(): TabCreator {
 
                         function refresh(): void {
                             if (session.cancelled) return;
-                            const inflight = dispatched - arrived - stuck - removed;
-                            progressText.set(
-                                `inflight=${inflight} arrived=${arrived} stuck=${stuck} removed=${removed} noPath=${noPath} noStart=${noStart}`
-                            );
+                            inflightStore.set(dispatched - arrived - stuck - removed);
+                            arrivedStore.set(arrived);
+                            stuckStore.set(stuck);
+                            removedStore.set(removed);
+                            noPathStore.set(noPath);
+                            noStartStore.set(noStart);
                         }
 
                         for (const guest of guests) {
@@ -170,7 +193,7 @@ export function createStressTestTab(): TabCreator {
                             if (!start) { noStart++; continue; }
 
                             dispatched++;
-                            algo(start, dest, budget).then((result) => {
+                            algo(start, dest, budget, options).then((result) => {
                                 if (session.cancelled) return;
                                 if (!result.success) {
                                     noPath++;
@@ -197,12 +220,39 @@ export function createStressTestTab(): TabCreator {
                     onClick: () => {
                         cancelSession();
                         statusText.set("");
-                        progressText.set("");
+                        inflightStore.set(0);
+                        arrivedStore.set(0);
+                        stuckStore.set(0);
+                        removedStore.set(0);
+                        noPathStore.set(0);
+                        noStartStore.set(0);
                     },
                 }),
             ]),
             label({ text: statusText, height: "14px" }),
-            label({ text: progressText, height: "14px" }),
+            groupbox({
+                text: "Progress",
+                content: [
+                    horizontal([
+                        label({ text: "Inflight:", width: "55px" }),
+                        label({ text: compute(inflightStore, v => `${v}`), width: "1w" }),
+                        label({ text: "Arrived:", width: "55px" }),
+                        label({ text: compute(arrivedStore, v => `${v}`), width: "1w" }),
+                    ]),
+                    horizontal([
+                        label({ text: "Stuck:", width: "55px" }),
+                        label({ text: compute(stuckStore, v => `${v}`), width: "1w" }),
+                        label({ text: "Removed:", width: "55px" }),
+                        label({ text: compute(removedStore, v => `${v}`), width: "1w" }),
+                    ]),
+                    horizontal([
+                        label({ text: "No path:", width: "55px" }),
+                        label({ text: compute(noPathStore, v => `${v}`), width: "1w" }),
+                        label({ text: "No start:", width: "55px" }),
+                        label({ text: compute(noStartStore, v => `${v}`), width: "1w" }),
+                    ]),
+                ],
+            }),
         ],
     });
 }

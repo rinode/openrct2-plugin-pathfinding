@@ -1,14 +1,14 @@
 # openrct2-plugin-pathfinding
 
-OpenRCT2 plugin for visualizing pathfinding on footpaths. Pick a start and end tile, choose an algorithm, and see the computed path highlighted as ghost tiles.
+OpenRCT2 plugin for visualizing pathfinding on footpaths. Pick two tiles, pick an algorithm, watch the path light up as ghost footpaths.
 
 ## Features
 
 - Pick start/end footpath tiles with an in-game tool
-- A\*, Dijkstra, BFS, and Greedy Best-First algorithms (via [openrct2-library-pathfinding](https://github.com/rinode/openrct2-library-pathfinding))
-- Configurable time budget per tick (1–50 ms)
-- Path visualization using ghost footpath elements
+- A\*, Dijkstra, BFS, and Greedy Best-First, via [openrct2-library-pathfinding](https://github.com/rinode/openrct2-library-pathfinding)
+- Time budget per tick (1-50 ms)
 - Stats: tile count, nodes explored, ticks, elapsed time
+- Junction graph tab: prebuild, invalidate, visualize junctions; any algorithm can opt into running on the graph
 
 ## Requirements
 
@@ -26,7 +26,7 @@ npm install
 npm run build
 ```
 
-Dev mode (auto-deploy to plugin folder):
+Dev mode (auto-deploys to the plugin folder):
 
 ```
 npm run develop
@@ -34,10 +34,24 @@ npm run develop
 
 ## Usage
 
-1. Open the **Pathfinding** window from the map menu
-2. Click **Pick** to select start and end footpath tiles
-3. Choose an algorithm and time budget
-4. Click **Find Path**
+Open the **Pathfinding** window from the map menu. Four tabs:
+
+- **Pathfinding**: pick two footpath tiles, run a search, see the path as ghost footpaths.
+- **Guest navigation**: pick a guest and a destination, the guest walks the computed path.
+- **Stress test**: send every guest in the park to one destination, track inflight/arrived/stuck/removed/no-path counts.
+- **Junction graph**: precompute and inspect the junction graph used as an opt-in speedup.
+
+### Junction graph
+
+Any algorithm can run on a corridor-contracted junction graph instead of tile by tile. Trades a one-time build for much faster repeat queries on sparse networks with long corridors. This is the 4-connected analog of Steve Rabin's JPS+ talk.
+
+Controls on the **Junction graph** tab:
+
+- **Prebuild** builds the graph for the component containing the picked seed tile, so the first search skips the build.
+- **Invalidate** clears the cached graph. Next search rebuilds. The graph also auto-invalidates when footpaths or banners change.
+- **Junctions** toggles ghost overlays on every junction tile in the cached graph.
+
+Once the graph has any junctions, the **Use junction graph** checkbox on each algorithm tab becomes enabled. Tick it to run that search on the graph.
 
 ## License
 
