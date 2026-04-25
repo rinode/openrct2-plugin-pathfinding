@@ -6,6 +6,7 @@ import { PathfindingAlgorithm, algorithms, getDefaultGraph } from "openrct2-libr
 import { showPath, clearPath } from "./visualization";
 import { togglePickTool } from "./pickTool";
 import { junctionCount, refreshJunctionCount } from "./graphState";
+import { createPathOptionStores, pathOptionsGroupbox, readPathOptions } from "./pathOptionsControl";
 
 const algorithmNames = Object.values(PathfindingAlgorithm);
 
@@ -55,6 +56,7 @@ export function createPathfindingTab(): TabCreator {
     const selectedAlgorithm: WritableStore<number> = store(0);
     const budgetMs: WritableStore<number> = store(2);
     const useGraph: WritableStore<boolean> = store(false);
+    const pathOptionStores = createPathOptionStores();
     const resultText: WritableStore<string> = store("");
     const debugText: WritableStore<string> = store("");
 
@@ -134,6 +136,7 @@ export function createPathfindingTab(): TabCreator {
                     }),
                 ],
             }),
+            pathOptionsGroupbox(pathOptionStores),
             horizontal([
                 button({
                     text: "Find Path", width: "1w", height: "24px",
@@ -150,7 +153,10 @@ export function createPathfindingTab(): TabCreator {
                         debugText.set("");
 
                         const algo = algorithms[algorithmNames[selectedAlgorithm.get()]];
-                        const options = useGraph.get() ? { graph: getDefaultGraph() } : undefined;
+                        const pathOptions = readPathOptions(pathOptionStores);
+                        const options = useGraph.get()
+                            ? { graph: getDefaultGraph(pathOptions), pathOptions }
+                            : { pathOptions };
                         algo(s, e, budgetMs.get(), options).then((result) => {
                             if (session.cancelled) return;
                             if (result.success) {

@@ -6,6 +6,7 @@ import { buildGraph, getDefaultGraph, invalidateGraph } from "openrct2-library-p
 import { showJunctions } from "./visualization";
 import { togglePickTool } from "./pickTool";
 import { junctionCount, showingJunctions, refreshJunctionCount, hideJunctions } from "./graphState";
+import { createPathOptionStores, pathOptionsGroupbox, readPathOptions } from "./pathOptionsControl";
 
 function formatCoords(pos: CoordsXYZ | null): string {
     if (!pos) return "Not set";
@@ -45,6 +46,7 @@ export function createJunctionGraphTab(): TabCreator {
     const seedPos: WritableStore<CoordsXYZ | null> = store(null);
     const seedPressed: WritableStore<boolean> = store(false);
     const budgetMs: WritableStore<number> = store(2);
+    const pathOptionStores = createPathOptionStores();
     const statusText: WritableStore<string> = store("");
 
     const seedLabel: Store<string> = compute(seedPos, formatCoords);
@@ -83,6 +85,7 @@ export function createJunctionGraphTab(): TabCreator {
                     ]),
                 ],
             }),
+            pathOptionsGroupbox(pathOptionStores),
             groupbox({
                 text: "Graph",
                 content: [
@@ -95,7 +98,7 @@ export function createJunctionGraphTab(): TabCreator {
                                 const seed = seedPos.get();
                                 if (!seed) return;
                                 statusText.set("Building...");
-                                buildGraph(seed, budgetMs.get()).then(() => {
+                                buildGraph(seed, budgetMs.get(), readPathOptions(pathOptionStores)).then(() => {
                                     refreshJunctionCount();
                                     statusText.set("");
                                 });
@@ -118,7 +121,7 @@ export function createJunctionGraphTab(): TabCreator {
                                     hideJunctions();
                                     return;
                                 }
-                                showJunctions(getDefaultGraph().getJunctionPositions());
+                                showJunctions(getDefaultGraph(readPathOptions(pathOptionStores)).getJunctionPositions());
                                 showingJunctions.set(true);
                             },
                         }),

@@ -6,6 +6,7 @@ import { PathfindingAlgorithm, algorithms, getDefaultGraph, guidePeep, peepFootp
 import { showPath, clearPath } from "./visualization";
 import { togglePickTool } from "./pickTool";
 import { junctionCount } from "./graphState";
+import { createPathOptionStores, pathOptionsGroupbox, readPathOptions } from "./pathOptionsControl";
 
 const algorithmNames = Object.values(PathfindingAlgorithm);
 
@@ -76,6 +77,7 @@ export function createGuestNavigationTab(): TabCreator {
     const selectedAlgorithm: WritableStore<number> = store(0);
     const budgetMs: WritableStore<number> = store(2);
     const useGraph: WritableStore<boolean> = store(false);
+    const pathOptionStores = createPathOptionStores();
     const statusText: WritableStore<string> = store("");
 
     let activeSession: { cancelled: boolean } | null = null;
@@ -166,6 +168,7 @@ export function createGuestNavigationTab(): TabCreator {
                     }),
                 ],
             }),
+            pathOptionsGroupbox(pathOptionStores),
             horizontal([
                 button({
                     text: "Send Guest", width: "1w", height: "24px",
@@ -194,7 +197,10 @@ export function createGuestNavigationTab(): TabCreator {
                         statusText.set("Searching...");
 
                         const algo = algorithms[algorithmNames[selectedAlgorithm.get()]];
-                        const options = useGraph.get() ? { graph: getDefaultGraph() } : undefined;
+                        const pathOptions = readPathOptions(pathOptionStores);
+                        const options = useGraph.get()
+                            ? { graph: getDefaultGraph(pathOptions), pathOptions }
+                            : { pathOptions };
                         algo(start, dest, budgetMs.get(), options).then((result) => {
                             if (session.cancelled) return;
                             if (!result.success) {

@@ -4,6 +4,7 @@ import {
 } from "openrct2-flexui";
 import { guidePeeps, getDefaultGraph } from "openrct2-library-pathfinding";
 import { togglePickTool } from "./pickTool";
+import { createPathOptionStores, pathOptionsGroupbox, readPathOptions } from "./pathOptionsControl";
 
 function formatCoords(pos: CoordsXYZ | null): string {
     if (!pos) return "Not set";
@@ -52,6 +53,7 @@ export function createStressTestTab(): TabCreator {
     const noStartStore: WritableStore<number> = store(0);
 
     const debugColors: WritableStore<boolean> = store(false);
+    const pathOptionStores = createPathOptionStores();
 
     let activeSession: { cancelled: boolean } | null = null;
     const frozenIds: Set<number> = new Set();
@@ -199,6 +201,7 @@ export function createStressTestTab(): TabCreator {
                     }),
                 ],
             }),
+            pathOptionsGroupbox(pathOptionStores),
             horizontal([
                 button({
                     text: "Send All", width: "1w", height: "24px",
@@ -240,9 +243,11 @@ export function createStressTestTab(): TabCreator {
                             noStartStore.set(noStart);
                         }
 
+                        const pathOptions = readPathOptions(pathOptionStores);
                         guidePeeps(guests, dest, {
                             budgetMs: budgetMs.get(),
-                            graph: getDefaultGraph(),
+                            graph: getDefaultGraph(pathOptions),
+                            pathOptions,
                             cancelToken: session,
                             onPeepResult: (peep, r) => {
                                 if (session.cancelled) return;
