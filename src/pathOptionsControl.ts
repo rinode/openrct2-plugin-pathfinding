@@ -3,27 +3,27 @@ import { PathNavigationOptions } from "openrct2-library-pathfinding";
 
 export interface PathOptionStores {
     respectBanners: WritableStore<boolean>;
-    excludeGhosts: WritableStore<boolean>;
-    excludeQueues: WritableStore<boolean>;
-    excludeWidePaths: WritableStore<boolean>;
+    includeGhosts: WritableStore<boolean>;
+    includeQueues: WritableStore<boolean>;
+    includeWidePaths: WritableStore<boolean>;
 }
 
 export function createPathOptionStores(): PathOptionStores {
     return {
         respectBanners: store(false),
-        excludeGhosts: store(false),
-        excludeQueues: store(false),
-        excludeWidePaths: store(false),
+        includeGhosts: store(false),
+        includeQueues: store(false),
+        includeWidePaths: store(false),
     };
 }
 
 export function readPathOptions(s: PathOptionStores): PathNavigationOptions | undefined {
     const r = s.respectBanners.get();
-    const eG = s.excludeGhosts.get();
-    const eQ = s.excludeQueues.get();
-    const eW = s.excludeWidePaths.get();
-    if (!r && !eG && !eQ && !eW) return undefined;
-    return { respectBanners: r, excludeGhosts: eG, excludeQueues: eQ, excludeWidePaths: eW };
+    const iG = s.includeGhosts.get();
+    const iQ = s.includeQueues.get();
+    const iW = s.includeWidePaths.get();
+    if (!r && !iG && !iQ && !iW) return undefined;
+    return { respectBanners: r, includeGhosts: iG, includeQueues: iQ, includeWidePaths: iW };
 }
 
 export function pathOptionsGroupbox(s: PathOptionStores) {
@@ -36,19 +36,19 @@ export function pathOptionsGroupbox(s: PathOptionStores) {
                 onChange: (v: boolean) => s.respectBanners.set(v),
             }),
             checkbox({
-                text: "Exclude ghost paths",
-                isChecked: s.excludeGhosts,
-                onChange: (v: boolean) => s.excludeGhosts.set(v),
+                text: "Include ghost paths",
+                isChecked: s.includeGhosts,
+                onChange: (v: boolean) => s.includeGhosts.set(v),
             }),
             checkbox({
-                text: "Exclude queue paths",
-                isChecked: s.excludeQueues,
-                onChange: (v: boolean) => s.excludeQueues.set(v),
+                text: "Include queue paths",
+                isChecked: s.includeQueues,
+                onChange: (v: boolean) => s.includeQueues.set(v),
             }),
             checkbox({
-                text: "Exclude wide paths",
-                isChecked: s.excludeWidePaths,
-                onChange: (v: boolean) => s.excludeWidePaths.set(v),
+                text: "Include wide paths",
+                isChecked: s.includeWidePaths,
+                onChange: (v: boolean) => s.includeWidePaths.set(v),
             }),
         ],
     });
