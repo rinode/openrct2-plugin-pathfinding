@@ -43,7 +43,7 @@ Open the **Pathfinding** window from the map menu. Four tabs:
 
 ### Junction graph
 
-Any algorithm can run on a corridor-contracted junction graph instead of tile by tile. Trades a one-time build for much faster repeat queries on sparse networks with long corridors. This is the 4-connected analog of Steve Rabin's JPS+ talk.
+Any algorithm can run on a junction graph instead of tile-by-tile. One-time build cost, much faster on large sparse networks.
 
 Controls on the **Junction graph** tab:
 
