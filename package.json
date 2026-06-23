@@ -1,6 +1,6 @@
 {
   "name": "openrct2-plugin-pathfinding",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A* pathfinding plugin for OpenRCT2 using the PathNavigator API",
   "type": "module",
   "scripts": {
